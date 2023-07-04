@@ -1,0 +1,13 @@
+This document contains details on edits made to create the new altar environmnet on top of lbf.
+
+1. First was adding new pngs of apple to represent different berries - now there are multiple possible coloured apples that agents can eat
+2. Making the max number of steps 1000
+3. The game doesn't end when there aren't any apples left, instead we keep respawning apples at the end of each step to remake any eaten apples
+4. All apples are level 1, so no cooperation is necessary, and max player level is 1
+5. Select a colour to represent a poison apple (poisoning can't be seen by any players) - keep poison apple constant for now (so no resetting for each episode)
+6. Added poisoned attribute to Player object (not observable to agents)
+7. Added poisoned agent png (poisoned but not yet suffering health effects) and unhealthy agent png (just for visualization purpose - not observed by agents)
+
+
+Do we need to get rid of penalty when we add punishment? We don't want agents punishing others into helping them?
+Do we want to normalize the reward?

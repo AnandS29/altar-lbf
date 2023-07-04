@@ -94,8 +94,10 @@ class Viewer(object):
         pyglet.resource.path = [os.path.join(script_dir, "icons")]
         pyglet.resource.reindex()
 
-        self.img_apple = pyglet.resource.image("apple.png")
+        self.imgs_apple = [pyglet.resource.image(f"apple{i}.png") for i in range(0,3)]
         self.img_agent = pyglet.resource.image("agent.png")
+        self.img_poisoned_agent = pyglet.resource.image("poisoned_agent.png")
+        self.img_unhealthy_agent = pyglet.resource.image("unhealthy_agent.png")
 
     def close(self):
         self.window.close()
@@ -179,7 +181,7 @@ class Viewer(object):
         for row, col in idxes:
             apples.append(
                 pyglet.sprite.Sprite(
-                    self.img_apple,
+                    self.imgs_apple[env.apples[row, col]],
                     (self.grid_size + 1) * col,
                     self.height - (self.grid_size + 1) * (row + 1),
                     batch=batch,
@@ -198,9 +200,17 @@ class Viewer(object):
 
         for player in env.players:
             row, col = player.position
+            img = None
+            if player.poisoned > 0:
+                if player.poisoned > env.poison_threshold:
+                    img = self.img_unhealthy_agent
+                else:
+                    img = self.img_poisoned_agent
+            elif player.poisoned == 0:
+                img = self.img_agent
             players.append(
                 pyglet.sprite.Sprite(
-                    self.img_agent,
+                    img,
                     (self.grid_size + 1) * col,
                     self.height - (self.grid_size + 1) * (row + 1),
                     batch=batch,
