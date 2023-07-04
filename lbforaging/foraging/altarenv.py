@@ -77,7 +77,7 @@ class AltarForagingEnv(Env):
     action_set = [Action.NORTH, Action.SOUTH, Action.WEST, Action.EAST, Action.LOAD]
     Observation = namedtuple(
         "Observation",
-        ["field", "apples", "actions", "players", "game_over", "sight", "current_step"],
+        ["field", "apples", "actions", "players", "game_over", "sight", "current_step", "altar"],
     )
     PlayerObservation = namedtuple(
         "PlayerObservation", ["position", "level", "history", "reward", "is_self"]
@@ -95,6 +95,8 @@ class AltarForagingEnv(Env):
         normalize_reward=True,
         grid_observation=False,
         penalty=0.0,
+        observe_altar=True,
+        random_poison=True,
     ):
         self.logger = logging.getLogger(__name__)
         self.seed()
@@ -102,6 +104,9 @@ class AltarForagingEnv(Env):
 
         self.field = np.zeros(field_size, np.int32)
         self.apples = np.zeros(field_size, np.int32)
+
+        self.observe_altar = observe_altar
+        self.random_poison = random_poison
 
         self.penalty = penalty
         
@@ -113,9 +118,12 @@ class AltarForagingEnv(Env):
         self.force_coop = force_coop
         self._game_over = None
 
-        self.poison_apple = 2 # this apple is poisoned
+        self.default_poison_apple = 2 # this apple is poisoned
+        self.poison_apple = None
         self.poison_factor = 0.1 # how much the poison apple reduced the reward of eating an apple
-        self.poison_threshold = 10 # how many steps till health effects begin to show
+        self.poison_threshold = 100 # how many steps till health effects begin to show
+
+        self.altar = None
 
         self._rendering_initialized = False
         self._valid_actions = None
@@ -148,13 +156,21 @@ class AltarForagingEnv(Env):
             max_food = self.max_food
             max_food_level = self.max_player_level * len(self.players)
 
-            min_obs = [-1, -1, 0, 0] * max_food + [-1, -1, 0] * len(self.players) # x,y,level, apple colour for each food + x,y,level for each player
-            max_obs = [field_x-1, field_y-1, max_food_level, 2] * max_food + [
-                field_x-1,
-                field_y-1,
-                self.max_player_level,
-            ] * len(self.players)
-        else: # TODO: implement partial observability with apple colour
+            if self.observe_altar:
+                min_obs = [-1,-1,0] + [-1, -1, 0, 0] * max_food + [-1, -1, 0] * len(self.players) # x,y,colour for altar + x,y,level, apple colour for each food + x,y,level for each player
+                max_obs = [field_x-1, field_y-1, 2] + [field_x-1, field_y-1, max_food_level, 2] * max_food + [
+                    field_x-1,
+                    field_y-1,
+                    self.max_player_level,
+                ] * len(self.players)
+            else:
+                min_obs = [-1, -1, 0, 0] * max_food + [-1, -1, 0] * len(self.players) # x,y,level, apple colour for each food + x,y,level for each player
+                max_obs = [field_x-1, field_y-1, max_food_level, 2] * max_food + [
+                    field_x-1,
+                    field_y-1,
+                    self.max_player_level,
+                ] * len(self.players)
+        else: # TODO: implement grid observation with apple colour
             # grid observation space
             grid_shape = (1 + 2 * self.sight, 1 + 2 * self.sight)
 
@@ -191,6 +207,8 @@ class AltarForagingEnv(Env):
         env.apples = np.copy(obs.apples)
         env.current_step = obs.current_step
         env.sight = obs.sight
+        env.altar = obs.altar
+        env.poison_apple = 2
         env._gen_valid_moves()
 
         return env
@@ -309,13 +327,21 @@ class AltarForagingEnv(Env):
         self._food_spawned = self.field.sum()
 
     def _is_empty_location(self, row, col):
-        if self.field[row, col] != 0:
+        if self.field[row, col] != 0 or (self.altar and self.altar[0] == row and self.altar[1] == col):
             return False
         for a in self.players:
             if a.position and row == a.position[0] and col == a.position[1]:
                 return False
 
         return True
+    
+    def spawn_altar(self):
+        while True:
+            row = self.np_random.randint(0, self.rows)
+            col = self.np_random.randint(0, self.cols)
+            if self._is_empty_location(row, col):
+                self.altar = (row, col, self.poison_apple)
+                break
 
     def spawn_players(self, max_player_level):
         for player in self.players:
@@ -409,6 +435,7 @@ class AltarForagingEnv(Env):
             game_over=self.game_over,
             sight=self.sight,
             current_step=self.current_step,
+            altar=(self.altar)
         )
 
     def _make_gym_obs(self):
@@ -420,27 +447,36 @@ class AltarForagingEnv(Env):
                 p for p in observation.players if not p.is_self
             ]
 
+            if self.observe_altar:
+                obs[0] = observation.altar[0]
+                obs[1] = observation.altar[1]
+                obs[2] = observation.altar[2]
+
+                pre = 3
+            else:
+                pre = 0
+
             for i in range(self.max_food):
-                obs[4 * i] = -1
-                obs[4 * i + 1] = -1
-                obs[4 * i + 2] = 0
-                obs[4 * i + 3] = 0
+                obs[pre + 4 * i] = -1
+                obs[pre + 4 * i + 1] = -1
+                obs[pre + 4 * i + 2] = 0
+                obs[pre + 4 * i + 3] = 0
 
             for i, (y, x) in enumerate(zip(*np.nonzero(observation.field))):
-                obs[4 * i] = y
-                obs[4 * i + 1] = x
-                obs[4 * i + 2] = observation.field[y, x]
-                obs[4 * i + 3] = observation.apples[y, x]
+                obs[pre + 4 * i] = y
+                obs[pre + 4 * i + 1] = x
+                obs[pre + 4 * i + 2] = observation.field[y, x]
+                obs[pre + 4 * i + 3] = observation.apples[y, x]
 
             for i in range(len(self.players)):
-                obs[self.max_food * 4 + 3 * i] = -1
-                obs[self.max_food * 4 + 3 * i + 1] = -1
-                obs[self.max_food * 4 + 3 * i + 2] = 0
+                obs[pre + self.max_food * 4 + 3 * i] = -1
+                obs[pre + self.max_food * 4 + 3 * i + 1] = -1
+                obs[pre + self.max_food * 4 + 3 * i + 2] = 0
 
             for i, p in enumerate(seen_players):
-                obs[self.max_food * 4 + 3 * i] = p.position[0]
-                obs[self.max_food * 4 + 3 * i + 1] = p.position[1]
-                obs[self.max_food * 4 + 3 * i + 2] = p.level
+                obs[pre + self.max_food * 4 + 3 * i] = p.position[0]
+                obs[pre + self.max_food * 4 + 3 * i + 1] = p.position[1]
+                obs[pre + self.max_food * 4 + 3 * i + 2] = p.level
 
             return obs
 
@@ -504,19 +540,27 @@ class AltarForagingEnv(Env):
                 f"obs space error: obs: {obs}, obs_space: {self.observation_space[i]}"
         
         return nobs, nreward, ndone, ninfo
+    
+    def set_poison_apple(self):
+        if self.random_poison:
+            self.poison_apple = np.random.randint(0, 3)
+        else:
+            self.poison_apple = self.default_poison_apple
 
     def reset(self):
         self.field = np.zeros(self.field_size, np.int32)
         self.apples = np.zeros(self.field_size, np.int32)
+        self.set_poison_apple()
+        self.spawn_altar()
         self.spawn_players(self.max_player_level)
         player_levels = sorted([player.level for player in self.players])
-
         self.spawn_food(
             self.max_food, max_level=(self.imposed_max_food_level if self.imposed_max_food_level is not None else sum(player_levels[:3]))
         )
         self.current_step = 0
         self._game_over = False
         self._gen_valid_moves()
+
 
         nobs, _, _, _ = self._make_gym_obs()
         return nobs
@@ -577,7 +621,7 @@ class AltarForagingEnv(Env):
             player = loading_players.pop()
             frow, fcol = self.adjacent_food_location(*player.position)
             food = self.field[frow, fcol]
-            is_food_poisoned = self.apples[frow, fcol] == self.poison_apple
+            is_food_poisoned = self.apples[frow, fcol] == self.poison_apple or True
 
             adj_players = self.adjacent_players(frow, fcol)
             adj_players = [
@@ -616,7 +660,7 @@ class AltarForagingEnv(Env):
         )
 
         # spawn new food if needed
-        if self.max_food - self.field.sum() <= 0:
+        if self.max_food - self.field.sum() > 0:
             player_levels = sorted([player.level for player in self.players])
             self.spawn_food(
                 self.max_food - self.field.sum(), max_level=(self.imposed_max_food_level if self.imposed_max_food_level is not None else sum(player_levels[:3]))

@@ -95,6 +95,7 @@ class Viewer(object):
         pyglet.resource.reindex()
 
         self.imgs_apple = [pyglet.resource.image(f"apple{i}.png") for i in range(0,3)]
+        self.imgs_altar = [pyglet.resource.image(f"altar{i}.png") for i in range(0,3)]
         self.img_agent = pyglet.resource.image("agent.png")
         self.img_poisoned_agent = pyglet.resource.image("poisoned_agent.png")
         self.img_unhealthy_agent = pyglet.resource.image("unhealthy_agent.png")
@@ -123,6 +124,8 @@ class Viewer(object):
         self._draw_grid()
         self._draw_food(env)
         self._draw_players(env)
+        if env.observe_altar:
+            self._draw_altar(env)
 
         if return_rgb_array:
             buffer = pyglet.image.get_buffer_manager().get_color_buffer()
@@ -193,6 +196,18 @@ class Viewer(object):
 
         for row, col in idxes:
             self._draw_badge(row, col, env.field[row, col])
+
+    def _draw_altar(self, env):
+        (row, col, colour) = env.altar
+        batch = pyglet.graphics.Batch()
+        altar = pyglet.sprite.Sprite(
+                self.imgs_altar[colour],
+                (self.grid_size + 1) * col,
+                self.height - (self.grid_size + 1) * (row + 1),
+                batch=batch,
+            )
+        altar.update(scale=self.grid_size / altar.width)
+        batch.draw()
 
     def _draw_players(self, env):
         players = []

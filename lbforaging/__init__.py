@@ -3,9 +3,11 @@ from itertools import product
 
 sizes = range(5, 20)
 players = range(2, 20)
-foods = range(1, 10)
+foods = range(1, 11)
 coop = [True, False]
 partial_obs = [True, False]
+obs_altar = [True, False]
+random_berry = [True, False]
 
 for s, p, f, c, po in product(sizes, players, foods, coop, partial_obs):
     register(
@@ -23,9 +25,9 @@ for s, p, f, c, po in product(sizes, players, foods, coop, partial_obs):
         },
     )
 
-for s, p, f, c, po in product(sizes, players, foods, coop, partial_obs):
+for s, p, f, c, po, alt,rand in product(sizes, players, foods, coop, partial_obs, obs_altar, random_berry):
     register(
-        id="AltarForaging{4}-{0}x{0}-{1}p-{2}f{3}-v2".format(s, p, f, "-coop" if c else "", "-2s" if po else ""),
+        id="AltarForaging{4}-{0}x{0}-{1}p-{2}f{3}{5}{6}-v2".format(s, p, f, "-coop" if c else "", "-2s" if po else "", "-altar" if alt else "", "-rand" if rand else ""),
         entry_point="lbforaging.foraging:AltarForagingEnv",
         kwargs={
             "players": p,
@@ -36,6 +38,8 @@ for s, p, f, c, po in product(sizes, players, foods, coop, partial_obs):
             "max_episode_steps": 1000,
             "force_coop": c,
             "grid_observation": False,
+            "observe_altar": alt,
+            "random_poison": rand
         },
     )
 
