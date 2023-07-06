@@ -13,7 +13,7 @@ env.render()
 # Sample random actions
 for _ in range(1000):
     action = env.action_space.sample()
-    time.sleep(0.1)
+    time.sleep(2.0)
     env.step(action)
     env.render()
 
