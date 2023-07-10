@@ -3,7 +3,7 @@ from itertools import product
 
 sizes = range(5, 20)
 players = range(2, 20)
-foods = range(1, 11)
+foods = range(1, 20)
 coop = [True, False]
 partial_obs = [True, False]
 obs_altar = [True, False]
