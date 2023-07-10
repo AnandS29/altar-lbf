@@ -121,7 +121,7 @@ class AltarForagingEnv(Env):
         self.default_poison_apple = 2 # this apple is poisoned
         self.poison_apple = None
         self.poison_factor = 0.1 # how much the poison apple reduced the reward of eating an apple
-        self.poison_threshold = 100 # how many steps till health effects begin to show
+        self.poison_threshold = 10 # how many steps till health effects begin to show
 
         self.altar = None
 
@@ -621,7 +621,7 @@ class AltarForagingEnv(Env):
             player = loading_players.pop()
             frow, fcol = self.adjacent_food_location(*player.position)
             food = self.field[frow, fcol]
-            is_food_poisoned = self.apples[frow, fcol] == self.poison_apple or True
+            is_food_poisoned = self.apples[frow, fcol] == self.poison_apple
 
             adj_players = self.adjacent_players(frow, fcol)
             adj_players = [
