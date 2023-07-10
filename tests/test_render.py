@@ -5,11 +5,12 @@ import time
 
 # Test rednering
 
-env = gym.make('AltarForaging-7x7-2p-4f-altar-rand-v2')
+env = gym.make('AltarForaging-7x7-2p-4f-rand-v2')
 obs = env.reset()
 
 env.render()
 
+cum_reward = [0,0]
 # Sample random actions
 for _ in range(1000):
     action = input("Action: ")
@@ -28,14 +29,14 @@ for _ in range(1000):
     else:
         action = 0
     
-    action = (action, 0)
+    action = (action, np.random.randint(0, 6))
+
     print(action)
     obs, reward, done, info = env.step(action)
-    print(reward)
+    cum_reward[0] += reward[0]
+    cum_reward[1] += reward[1]
+    print(cum_reward)
 
-    obs1, obs2 = obs
-    print(obs1)
-    print(obs2)
     env.render()
 
 # sleep for 10 seconds

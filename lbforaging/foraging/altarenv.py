@@ -104,6 +104,7 @@ class AltarForagingEnv(Env):
 
         self.field = np.zeros(field_size, np.int32)
         self.apples = np.zeros(field_size, np.int32)
+        self.apples_timer = np.zeros(field_size, np.int32)
 
         self.observe_altar = observe_altar
         self.random_poison = random_poison
@@ -122,6 +123,8 @@ class AltarForagingEnv(Env):
         self.poison_apple = None
         self.poison_factor = 0.1 # how much the poison apple reduced the reward of eating an apple
         self.poison_threshold = 10 # how many steps till health effects begin to show
+        
+        self.apple_expire_time = 7 # how many steps till an apple disappears
 
         self.altar = None
 
@@ -323,6 +326,7 @@ class AltarForagingEnv(Env):
                 else self.np_random.randint(min_level, max_level)
             )
             self.apples[row,col] = np.random.randint(0, 3)
+            self.apples_timer[row,col] = 0
             food_count += 1
         self._food_spawned = self.field.sum()
 
@@ -550,6 +554,7 @@ class AltarForagingEnv(Env):
     def reset(self):
         self.field = np.zeros(self.field_size, np.int32)
         self.apples = np.zeros(self.field_size, np.int32)
+        self.apples_timer = np.zeros(self.field_size, np.int32)
         self.set_poison_apple()
         self.spawn_altar()
         self.spawn_players(self.max_player_level)
@@ -615,6 +620,7 @@ class AltarForagingEnv(Env):
                 continue
             v[0].position = k
 
+
         # finally process the loadings:
         while loading_players:
             # find adjacent food
@@ -651,13 +657,18 @@ class AltarForagingEnv(Env):
                 if is_food_poisoned:
                     a.poison()
             # and the food is removed
-            self.field[frow, fcol] = 0
-            self.apples[frow, fcol] = 0
+            self.remove_apple(frow, fcol)
 
         self._game_over = (
             # self.field.sum() == 0 or self._max_episode_steps <= self.current_step
             self._max_episode_steps <= self.current_step
         )
+
+        # Increment apple timers
+        self.increment_timer()
+
+        # Expire apples
+        self.expire_apples()
 
         # spawn new food if needed
         if self.max_food - self.field.sum() > 0:
@@ -674,6 +685,20 @@ class AltarForagingEnv(Env):
             p.increment_poisoned() # only increment if poisoned > 0 (ie they've been poisoned)
 
         return self._make_gym_obs()
+    
+    def increment_timer(self):
+            self.apples_timer[self.field > 0] += 1
+
+    def remove_apple(self,row,col):
+        self.apples[row,col] = 0
+        self.apples_timer[row,col] = 0
+        self.field[row,col] = 0
+
+    def expire_apples(self):
+        # expire apples
+        expired_apples = np.where(self.apples_timer >= self.apple_expire_time)
+        for row,col in zip(expired_apples[0],expired_apples[1]):
+            self.remove_apple(row,col)
 
     def _init_render(self):
         from .rendering import Viewer
