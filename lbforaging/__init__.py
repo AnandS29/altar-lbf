@@ -36,7 +36,7 @@ for s, p, f, c, po, alt, rand, mark in product(sizes, players, foods, coop, part
             "field_size": (s, s),
             "max_food": f,
             "sight": 2 if po else s,
-            "max_episode_steps": 100,
+            "max_episode_steps": 1000,
             "force_coop": c,
             "grid_observation": False,
             "observe_altar": alt,
