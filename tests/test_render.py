@@ -19,16 +19,16 @@ def nice_print_ind(obs):
     altar_x, altar_y, altar_colour = obs[0], obs[1], obs[2]
     berries = []
     for i in range(4):
-        berries.append((obs[3+3*i], obs[4+3*i], obs[5+3*i]))
-    pre = 12 + 3
+        berries.append((obs[3+3*i], obs[4+3*i], obs[5+3*i], obs[6+3*i]))
+    pre = 4*4 + 3
     players = []
     for i in range(2):
-        players.append((obs[pre+4*i], obs[pre+4*i+1], obs[pre+4*i+2]), obs[pre+4*i+3])
+        players.append((obs[pre+4*i], obs[pre+4*i+1], obs[pre+4*i+2], obs[pre+4*i+3]))
 
     print("Altar: ({}, {}) {}".format(altar_x, altar_y, altar_colour))
     print()
     for b in berries:
-        print("Berry: ({}, {}) {}".format(b[0], b[1], b[2]))
+        print("Berry: ({}, {}) lvl={}, color={}".format(b[0], b[1], b[2], b[3]))
     print()
     i = 0
     for p in players:
@@ -36,13 +36,17 @@ def nice_print_ind(obs):
             print("Player (ME): ({}, {}) lvl={}, marked={}".format(p[0], p[1], p[2], p[3]))
         else:
             print("Player: ({}, {}) lvl={}, marked={}".format(p[0], p[1], p[2], p[3]))
+        i += 1
 
 def nice_print(obs):
     print("Agent 1")
     print(nice_print_ind(obs[0]))
+    print(obs[0])
     print()
     print("Agent 2")
     print(nice_print_ind(obs[1]))
+    print(obs[1])
+    print()
 
 if args.render:
     env.render()
