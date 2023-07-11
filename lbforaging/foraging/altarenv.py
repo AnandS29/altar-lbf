@@ -353,10 +353,13 @@ class AltarForagingEnv(Env):
             col = self.np_random.randint(1, self.cols - 1)
 
             # check if it has neighbors:
+            # if (
+            #     self.neighborhood(row, col).sum() > 0
+            #     or self.neighborhood(row, col, distance=2, ignore_diag=True) > 0
+            #     or not self._is_empty_location(row, col)
+            # ):
             if (
-                self.neighborhood(row, col).sum() > 0
-                or self.neighborhood(row, col, distance=2, ignore_diag=True) > 0
-                or not self._is_empty_location(row, col)
+                not self._is_empty_location(row, col)
             ):
                 continue
 
