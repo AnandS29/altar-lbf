@@ -94,7 +94,7 @@ class AltarForagingEnv(Env):
         ["field", "apples", "actions", "players", "game_over", "sight", "current_step", "altar"],
     )
     PlayerObservation = namedtuple(
-        "PlayerObservation", ["position", "level", "history", "reward", "is_self"]
+        "PlayerObservation", ["position", "level", "history", "reward", "is_self", "marked"]
     )  # reward is available only if is_self
 
     def __init__(
@@ -461,6 +461,7 @@ class AltarForagingEnv(Env):
                     is_self=a == player,
                     history=a.history,
                     reward=a.reward if a == player else None,
+                    marked = int(a.is_marked()),
                 )
                 for a in self.players
                 if (
@@ -525,14 +526,14 @@ class AltarForagingEnv(Env):
                 obs[pre + self.max_food * 4 + incr * i + 1] = -1
                 obs[pre + self.max_food * 4 + incr * i + 2] = 0
                 if self.mark:
-                    obs[pre + self.max_food * 4 + incr * i + 4] = 0
+                    obs[pre + self.max_food * 4 + incr * i + 3] = 0
 
             for i, p in enumerate(seen_players):
                 obs[pre + self.max_food * 4 + incr * i] = p.position[0]
                 obs[pre + self.max_food * 4 + incr * i + 1] = p.position[1]
                 obs[pre + self.max_food * 4 + incr * i + 2] = p.level
                 if self.mark:
-                    obs[pre + self.max_food * 4 + incr * i + 4] = int(p.is_marked())
+                    obs[pre + self.max_food * 4 + incr * i + 3] = p.marked
 
             return obs
 
