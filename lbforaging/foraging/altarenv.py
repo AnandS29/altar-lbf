@@ -155,7 +155,11 @@ class AltarForagingEnv(Env):
         self._normalize_reward = normalize_reward
         self._grid_observation = grid_observation
 
-        self.action_space = gym.spaces.Tuple(tuple([gym.spaces.Discrete(10)] * len(self.players)))
+        if self.mark:
+            act_num = 10
+        else:
+            act_num = 6
+        self.action_space = gym.spaces.Tuple(tuple([gym.spaces.Discrete(act_num)] * len(self.players)))
         self.observation_space = gym.spaces.Tuple(tuple([self._get_observation_space()] * len(self.players)))
 
         self.viewer = None
@@ -430,7 +434,8 @@ class AltarForagingEnv(Env):
         elif action == Action.LOAD:
             return self.field[player.position[0], player.position[1]] > 0
         elif action in [Action.PUNISH_EAST, Action.PUNISH_WEST, Action.PUNISH_NORTH, Action.PUNISH_SOUTH]:
-            return True
+            return self.mark # punishing is only valid if mark is enabled.
+
 
         self.logger.error("Undefined action {} from {}".format(action, player.name))
         raise ValueError("Undefined action")
@@ -678,7 +683,7 @@ class AltarForagingEnv(Env):
                 # Get players at punishing location
                 punished_players_at_loc = self.find_players_at_loc(self.players, punishing_location)
                 player.reward -= self.cost_of_punishment
-                
+
                 for p in punished_players_at_loc:
                     punished_players.append(p)
                     if p.is_marked():
@@ -743,7 +748,8 @@ class AltarForagingEnv(Env):
             #     )  # normalize reward
             if is_food_poisoned:
                 player.poison()
-                player.mark()
+                if self.mark:
+                    player.mark()
             self.remove_apple(frow, fcol)
 
         self._game_over = (
