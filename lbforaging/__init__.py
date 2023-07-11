@@ -8,6 +8,7 @@ coop = [True, False]
 partial_obs = [True, False]
 obs_altar = [True, False]
 random_berry = [True, False]
+obs_mark = [True, False]
 
 for s, p, f, c, po in product(sizes, players, foods, coop, partial_obs):
     register(
@@ -25,9 +26,9 @@ for s, p, f, c, po in product(sizes, players, foods, coop, partial_obs):
         },
     )
 
-for s, p, f, c, po, alt,rand in product(sizes, players, foods, coop, partial_obs, obs_altar, random_berry):
+for s, p, f, c, po, alt, rand, mark in product(sizes, players, foods, coop, partial_obs, obs_altar, random_berry, obs_mark):
     register(
-        id="AltarForaging{4}-{0}x{0}-{1}p-{2}f{3}{5}{6}-v2".format(s, p, f, "-coop" if c else "", "-2s" if po else "", "-altar" if alt else "", "-rand" if rand else ""),
+        id="AltarForaging{4}-{0}x{0}-{1}p-{2}f{3}{5}{6}{7}-v2".format(s, p, f, "-coop" if c else "", "-2s" if po else "", "-altar" if alt else "", "-rand" if rand else "", "-mark" if mark else ""),
         entry_point="lbforaging.foraging:AltarForagingEnv",
         kwargs={
             "players": p,
@@ -35,11 +36,12 @@ for s, p, f, c, po, alt,rand in product(sizes, players, foods, coop, partial_obs
             "field_size": (s, s),
             "max_food": f,
             "sight": 2 if po else s,
-            "max_episode_steps": 1000,
+            "max_episode_steps": 100,
             "force_coop": c,
             "grid_observation": False,
             "observe_altar": alt,
-            "random_poison": rand
+            "random_poison": rand,
+            "observe_mark": mark,
         },
     )
 

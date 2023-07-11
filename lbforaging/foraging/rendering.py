@@ -99,6 +99,9 @@ class Viewer(object):
         self.img_agent = pyglet.resource.image("agent.png")
         self.img_poisoned_agent = pyglet.resource.image("poisoned_agent.png")
         self.img_unhealthy_agent = pyglet.resource.image("unhealthy_agent.png")
+        self.img_agent_marked = pyglet.resource.image("agent_marked.png")
+        self.img_poisoned_agent_marked = pyglet.resource.image("poisoned_agent_marked.png")
+        self.img_unhealthy_agent_marked = pyglet.resource.image("unhealthy_agent_marked.png")
 
     def close(self):
         self.window.close()
@@ -194,8 +197,8 @@ class Viewer(object):
             a.update(scale=self.grid_size / a.width)
         batch.draw()
 
-        for row, col in idxes:
-            self._draw_badge(row, col, env.field[row, col])
+        # for row, col in idxes:
+        #     self._draw_badge(row, col, env.field[row, col])
 
     def _draw_altar(self, env):
         (row, col, colour) = env.altar
@@ -218,11 +221,20 @@ class Viewer(object):
             img = None
             if player.poisoned > 0:
                 if player.poisoned > env.poison_threshold:
-                    img = self.img_unhealthy_agent
+                    if player.is_marked():
+                        img = self.img_unhealthy_agent_marked
+                    else:
+                        img = self.img_unhealthy_agent
                 else:
-                    img = self.img_poisoned_agent
+                    if player.is_marked():
+                        img = self.img_poisoned_agent_marked
+                    else:
+                        img = self.img_poisoned_agent
             elif player.poisoned == 0:
-                img = self.img_agent
+                if player.is_marked():
+                    img = self.img_agent_marked
+                else:
+                    img = self.img_agent
             players.append(
                 pyglet.sprite.Sprite(
                     img,
@@ -234,8 +246,8 @@ class Viewer(object):
         for p in players:
             p.update(scale=self.grid_size / p.width)
         batch.draw()
-        for p in env.players:
-            self._draw_badge(*p.position, p.level)
+        # for p in env.players:
+        #     self._draw_badge(*p.position, p.level)
 
     def _draw_badge(self, row, col, level):
         resolution = 6

@@ -15,7 +15,10 @@ class Action(Enum):
     WEST = 3
     EAST = 4
     LOAD = 5
-
+    PUNISH_NORTH = 6
+    PUNISH_SOUTH = 7
+    PUNISH_WEST = 8
+    PUNISH_EAST = 9
 
 class CellEntity(Enum):
     # entity encodings for grid observations
@@ -38,6 +41,7 @@ class Player:
         self.history = None
         self.current_step = None
         self.poisoned = 0
+        self.marked = None
 
     def setup(self, position, level, field_size):
         self.history = []
@@ -45,6 +49,7 @@ class Player:
         self.level = level
         self.field_size = field_size
         self.score = 0
+        self.marked = False
 
     def increment_poisoned(self):
         if self.poisoned > 0:
@@ -58,6 +63,15 @@ class Player:
 
     def step(self, obs):
         return self.controller._step(obs)
+    
+    def mark(self):
+        self.marked = True
+
+    def unmark(self):
+        self.marked = False
+
+    def is_marked(self):
+        return self.marked
 
     @property
     def name(self):
@@ -74,7 +88,7 @@ class AltarForagingEnv(Env):
 
     metadata = {"render.modes": ["human"]}
 
-    action_set = [Action.NORTH, Action.SOUTH, Action.WEST, Action.EAST, Action.LOAD]
+    action_set = [Action.NORTH, Action.SOUTH, Action.WEST, Action.EAST, Action.LOAD, Action.PUNISH_NORTH, Action.PUNISH_SOUTH, Action.PUNISH_WEST, Action.PUNISH_EAST]
     Observation = namedtuple(
         "Observation",
         ["field", "apples", "actions", "players", "game_over", "sight", "current_step", "altar"],
@@ -97,6 +111,7 @@ class AltarForagingEnv(Env):
         penalty=0.0,
         observe_altar=True,
         random_poison=True,
+        observe_mark=True
     ):
         self.logger = logging.getLogger(__name__)
         self.seed()
@@ -107,6 +122,7 @@ class AltarForagingEnv(Env):
         self.apples_timer = np.zeros(field_size, np.int32)
 
         self.observe_altar = observe_altar
+        self.mark = observe_mark
         self.random_poison = random_poison
 
         self.penalty = penalty
@@ -123,6 +139,10 @@ class AltarForagingEnv(Env):
         self.poison_apple = None
         self.poison_factor = 0.1 # how much the poison apple reduced the reward of eating an apple
         self.poison_threshold = 10 # how many steps till health effects begin to show
+
+        self.punishment = 15
+        self.cost_of_punishment = 5
+        self.reward_for_correct_punishment = 15
         
         self.apple_expire_time = 7 # how many steps till an apple disappears
 
@@ -135,7 +155,7 @@ class AltarForagingEnv(Env):
         self._normalize_reward = normalize_reward
         self._grid_observation = grid_observation
 
-        self.action_space = gym.spaces.Tuple(tuple([gym.spaces.Discrete(6)] * len(self.players)))
+        self.action_space = gym.spaces.Tuple(tuple([gym.spaces.Discrete(10)] * len(self.players)))
         self.observation_space = gym.spaces.Tuple(tuple([self._get_observation_space()] * len(self.players)))
 
         self.viewer = None
@@ -160,20 +180,38 @@ class AltarForagingEnv(Env):
             max_food_level = self.max_player_level * len(self.players)
 
             if self.observe_altar:
-                min_obs = [-1,-1,0] + [-1, -1, 0, 0] * max_food + [-1, -1, 0] * len(self.players) # x,y,colour for altar + x,y,level, apple colour for each food + x,y,level for each player
-                max_obs = [field_x-1, field_y-1, 2] + [field_x-1, field_y-1, max_food_level, 2] * max_food + [
-                    field_x-1,
-                    field_y-1,
-                    self.max_player_level,
-                ] * len(self.players)
+                if self.mark:
+                    min_obs = [-1,-1,0] + [-1, -1, 0, 0] * max_food + [-1, -1, 0, 0] * len(self.players) # x,y,colour for altar + x,y,level, apple colour for each food + x,y,level,mark for each player
+                    max_obs = [field_x-1, field_y-1, 2] + [field_x-1, field_y-1, max_food_level, 2] * max_food + [
+                        field_x-1,
+                        field_y-1,
+                        self.max_player_level,
+                        1
+                    ] * len(self.players)
+                else:
+                    min_obs = [-1,-1,0] + [-1, -1, 0, 0] * max_food + [-1, -1, 0] * len(self.players) # x,y,colour for altar + x,y,level, apple colour for each food + x,y,level for each player
+                    max_obs = [field_x-1, field_y-1, 2] + [field_x-1, field_y-1, max_food_level, 2] * max_food + [
+                        field_x-1,
+                        field_y-1,
+                        self.max_player_level,
+                    ] * len(self.players)
             else:
-                min_obs = [-1, -1, 0, 0] * max_food + [-1, -1, 0] * len(self.players) # x,y,level, apple colour for each food + x,y,level for each player
-                max_obs = [field_x-1, field_y-1, max_food_level, 2] * max_food + [
-                    field_x-1,
-                    field_y-1,
-                    self.max_player_level,
-                ] * len(self.players)
-        else: # TODO: implement grid observation with apple colour
+                if self.mark:
+                    min_obs = [-1, -1, 0, 0] * max_food + [-1, -1, 0, 0] * len(self.players) # x,y,level, apple colour for each food + x,y,level for each player
+                    max_obs = [field_x-1, field_y-1, max_food_level, 2] * max_food + [
+                        field_x-1,
+                        field_y-1,
+                        self.max_player_level,
+                        1
+                    ] * len(self.players)
+                else:
+                    min_obs = [-1, -1, 0, 0] * max_food + [-1, -1, 0] * len(self.players) # x,y,level, apple colour for each food + x,y,level for each player
+                    max_obs = [field_x-1, field_y-1, max_food_level, 2] * max_food + [
+                        field_x-1,
+                        field_y-1,
+                        self.max_player_level,
+                    ] * len(self.players)
+        else: # TODO: implement grid observation with apple colour, altar, marking, etc.
             # grid observation space
             grid_shape = (1 + 2 * self.sight, 1 + 2 * self.sight)
 
@@ -372,25 +410,27 @@ class AltarForagingEnv(Env):
         elif action == Action.NORTH:
             return (
                 player.position[0] > 0
-                and self.field[player.position[0] - 1, player.position[1]] == 0
+                # and self.field[player.position[0] - 1, player.position[1]] == 0
             )
         elif action == Action.SOUTH:
             return (
                 player.position[0] < self.rows - 1
-                and self.field[player.position[0] + 1, player.position[1]] == 0
+                # and self.field[player.position[0] + 1, player.position[1]] == 0
             )
         elif action == Action.WEST:
             return (
                 player.position[1] > 0
-                and self.field[player.position[0], player.position[1] - 1] == 0
+                # and self.field[player.position[0], player.position[1] - 1] == 0
             )
         elif action == Action.EAST:
             return (
                 player.position[1] < self.cols - 1
-                and self.field[player.position[0], player.position[1] + 1] == 0
+                # and self.field[player.position[0], player.position[1] + 1] == 0
             )
         elif action == Action.LOAD:
-            return self.adjacent_food(*player.position) > 0
+            return self.field[player.position[0], player.position[1]] > 0
+        elif action in [Action.PUNISH_EAST, Action.PUNISH_WEST, Action.PUNISH_NORTH, Action.PUNISH_SOUTH]:
+            return True
 
         self.logger.error("Undefined action {} from {}".format(action, player.name))
         raise ValueError("Undefined action")
@@ -472,15 +512,22 @@ class AltarForagingEnv(Env):
                 obs[pre + 4 * i + 2] = observation.field[y, x]
                 obs[pre + 4 * i + 3] = observation.apples[y, x]
 
+            incr = 3
+            if self.mark:
+                incr = 4
             for i in range(len(self.players)):
-                obs[pre + self.max_food * 4 + 3 * i] = -1
-                obs[pre + self.max_food * 4 + 3 * i + 1] = -1
-                obs[pre + self.max_food * 4 + 3 * i + 2] = 0
+                obs[pre + self.max_food * 4 + incr * i] = -1
+                obs[pre + self.max_food * 4 + incr * i + 1] = -1
+                obs[pre + self.max_food * 4 + incr * i + 2] = 0
+                if self.mark:
+                    obs[pre + self.max_food * 4 + incr * i + 4] = 0
 
             for i, p in enumerate(seen_players):
-                obs[pre + self.max_food * 4 + 3 * i] = p.position[0]
-                obs[pre + self.max_food * 4 + 3 * i + 1] = p.position[1]
-                obs[pre + self.max_food * 4 + 3 * i + 2] = p.level
+                obs[pre + self.max_food * 4 + incr * i] = p.position[0]
+                obs[pre + self.max_food * 4 + incr * i + 1] = p.position[1]
+                obs[pre + self.max_food * 4 + incr * i + 2] = p.level
+                if self.mark:
+                    obs[pre + self.max_food * 4 + incr * i + 4] = int(p.is_marked())
 
             return obs
 
@@ -569,6 +616,9 @@ class AltarForagingEnv(Env):
 
         nobs, _, _, _ = self._make_gym_obs()
         return nobs
+    
+    def find_players_at_loc(self, players, loc):
+        return [player for player in players if player.position == loc]
 
     def step(self, actions):
         self.current_step += 1
@@ -592,6 +642,7 @@ class AltarForagingEnv(Env):
                 actions[i] = Action.NONE
 
         loading_players = set()
+        punished_players = [] # Can be punished by multiple people
 
         # move players
         # if two or more players try to move to the same location they all fail
@@ -612,11 +663,36 @@ class AltarForagingEnv(Env):
             elif action == Action.LOAD:
                 collisions[player.position].append(player)
                 loading_players.add(player)
+            elif action in [Action.PUNISH_EAST, Action.PUNISH_WEST, Action.PUNISH_NORTH, Action.PUNISH_SOUTH]:
+                collisions[player.position].append(player)
+                # Get punishing location
+                if action == Action.PUNISH_EAST:
+                    punishing_location = (player.position[0], player.position[1] + 1)
+                elif action == Action.PUNISH_WEST:
+                    punishing_location = (player.position[0], player.position[1] - 1)
+                elif action == Action.PUNISH_NORTH:
+                    punishing_location = (player.position[0] - 1, player.position[1])
+                elif action == Action.PUNISH_SOUTH: 
+                    punishing_location = (player.position[0] + 1, player.position[1])
 
+                # Get players at punishing location
+                punished_players_at_loc = self.find_players_at_loc(self.players, punishing_location)
+                player.reward -= self.cost_of_punishment
+                
+                for p in punished_players_at_loc:
+                    punished_players.append(p)
+                    if p.is_marked():
+                        player.reward += self.reward_for_correct_punishment
+
+        # punish players
+        for player in punished_players:
+            player.reward -= self.punishment
+            player.unmark()
+                
         # and do movements for non colliding players
 
         for k, v in collisions.items():
-            if len(v) > 1:  # make sure no more than an player will arrive at location
+            if len(v) > 1:  # make sure no more than one player will arrive at location
                 continue
             v[0].position = k
 
@@ -625,38 +701,49 @@ class AltarForagingEnv(Env):
         while loading_players:
             # find adjacent food
             player = loading_players.pop()
-            frow, fcol = self.adjacent_food_location(*player.position)
+            frow, fcol = player.position[0], player.position[1]
             food = self.field[frow, fcol]
             is_food_poisoned = self.apples[frow, fcol] == self.poison_apple
 
-            adj_players = self.adjacent_players(frow, fcol)
-            adj_players = [
-                p for p in adj_players if p in loading_players or p is player
-            ]
+            # adj_players = self.adjacent_players(frow, fcol)
+            # adj_players = [
+            #     p for p in adj_players if p in loading_players or p is player
+            # ]
 
-            adj_player_level = sum([a.level for a in adj_players])
+            # adj_player_level = sum([a.level for a in adj_players])
 
-            loading_players = loading_players - set(adj_players)
+            # loading_players = loading_players - set(adj_players)
 
-            if adj_player_level < food:
-                # failed to load
-                for a in adj_players:
-                    a.reward -= self.penalty
-                continue
+            # if adj_player_level < food:
+            #     # failed to load
+            #     for a in adj_players:
+            #         a.reward -= self.penalty
+            #     continue
 
             # else the food was loaded and each player scores points
-            for a in adj_players:
-                r = float(a.level * food)
-                if a.poisoned > self.poison_threshold:
-                    r *= self.poison_factor
-                a.reward = r
-                if self._normalize_reward:
-                    a.reward = a.reward / float(
-                        adj_player_level * self._food_spawned
-                    )  # normalize reward
-                if is_food_poisoned:
-                    a.poison()
+            # for a in adj_players:
+            #     r = float(a.level * food)
+            #     if a.poisoned > self.poison_threshold:
+            #         r *= self.poison_factor
+            #     a.reward = r
+            #     if self._normalize_reward:
+            #         a.reward = a.reward / float(
+            #             adj_player_level * self._food_spawned
+            #         )  # normalize reward
+            #     if is_food_poisoned:
+            #         a.poison()
             # and the food is removed
+            r = 1
+            if player.poisoned > self.poison_threshold:
+                r *= self.poison_factor
+            player.reward += r
+            # if self._normalize_reward:
+            #     player.reward = player.reward / float(
+            #         adj_player_level * self._food_spawned
+            #     )  # normalize reward
+            if is_food_poisoned:
+                player.poison()
+                player.mark()
             self.remove_apple(frow, fcol)
 
         self._game_over = (
